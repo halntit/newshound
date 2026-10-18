@@ -1,0 +1,15 @@
+{
+  "name": "news-ec2-app",
+  "version": "1.0.0",
+  "description": "Collects IT/AI/startup news from RSS, Hacker News and X, summarizes it with Claude, and posts a digest to Slack every 3 hours.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "pipeline": "node pipeline.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "better-sqlite3": "^11.3.0",
+    "rss-parser": "^3.13.0"
+  }
+}

@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>News Pipeline Console</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0F141B;
+    --surface: #171E28;
+    --border: #2A3443;
+    --text: #E4E9F0;
+    --text-muted: #8A96A8;
+    --accent: #3D6FD6;
+    --accent-hover: #3461BE;
+    --accent-soft: #1C2A44;
+    --accent-text: #8DB0F2;
+    --signal: #D9A04A;
+    --success: #3FB67F;
+    --danger: #E5675A;
+    --danger-strong: #C0392B;
+    --danger-soft: #3A1F1F;
+    --disabled: #2F3B4E;
+    --dot-off: #4A5568;
+    --warn-bg: #2A2112;
+    --warn-border: #5A4520;
+    --warn-text: #F0C987;
+    --toast-bg: #2A3443;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .display { font-family: 'Space Grotesk', sans-serif; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 28px; border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand .eyebrow {
+    font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+  }
+  .brand h1 { font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 600; margin: 0; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+  .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 3px rgba(217,160,74,0.18); }
+  .status.ok .dot { background: var(--success); box-shadow: 0 0 0 3px rgba(63,182,127,0.18); }
+  .status.err .dot { background: var(--danger); box-shadow: 0 0 0 3px rgba(229,103,90,0.18); }
+
+  .layout { display: grid; grid-template-columns: 1fr 380px; gap: 24px; max-width: 1180px; margin: 0 auto; padding: 28px; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+  /* Signed out: only the key prompt is shown */
+  .layout.signed-out { grid-template-columns: 1fr; max-width: 640px; }
+  .layout.signed-out #appContent, .layout.signed-out .json-pane { display: none; }
+
+  .tabs { display: inline-flex; padding: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; margin-bottom: 20px; }
+  .tab-btn {
+    border: none; background: transparent; padding: 8px 18px; border-radius: 999px;
+    font-family: 'Space Grotesk', sans-serif; font-size: 13.5px; font-weight: 600; color: var(--text-muted);
+    cursor: pointer; transition: all .15s ease;
+  }
+  .tab-btn.active { background: var(--accent); color: white; }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+  .panel + .panel { margin-top: 18px; }
+  .panel h2 { font-family: 'Space Grotesk', sans-serif; font-size: 15px; margin: 0 0 4px; }
+  .panel .hint { font-size: 13px; color: var(--text-muted); margin: 0 0 16px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; padding: 0 10px 10px; }
+  td { padding: 11px 10px; border-top: 1px solid var(--border); font-size: 13.5px; vertical-align: top; }
+  td.url { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat-pill { display: inline-block; font-size: 11px; padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+  .row-actions button { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 6px; }
+  .row-actions button:hover { background: var(--danger-soft); }
+  .empty-state { padding: 28px 10px; text-align: center; color: var(--text-muted); font-size: 13.5px; }
+
+  .field-row { display: grid; grid-template-columns: 1.4fr 2fr 1fr auto; gap: 10px; margin-top: 16px; }
+  @media (max-width: 640px) { .field-row { grid-template-columns: 1fr; } }
+  input, select {
+    font-family: 'Inter', sans-serif; font-size: 13.5px; padding: 9px 11px;
+    border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--text); width: 100%;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; background: var(--surface); }
+  input.mono-input { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; }
+
+  .btn { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; padding: 9px 16px; border-radius: 7px; border: none; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary:disabled { background: var(--disabled); color: var(--text-muted); cursor: not-allowed; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 6px; }
+  .field .desc { font-size: 12px; color: var(--text-muted); margin: 4px 0 0; }
+  .secret-row { display: flex; gap: 8px; }
+  .secret-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  .secret-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dot-off); }
+  .secret-status.set .dot { background: var(--success); }
+
+  .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .tag { display: inline-flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px; background: var(--bg); border: 1px solid var(--border); padding: 4px 6px 4px 10px; border-radius: 999px; }
+  .tag button { border: none; background: none; color: var(--text-muted); cursor: pointer; font-size: 13px; line-height: 1; padding: 2px; }
+
+  .json-pane {
+    position: sticky; top: 28px; background: #0B1017; border-radius: var(--radius); overflow: hidden;
+    border: 1px solid #26324A; height: fit-content;
+  }
+  .json-pane .head { padding: 12px 16px; border-bottom: 1px solid #26324A; display: flex; align-items: center; justify-content: space-between; }
+  .json-pane .head span { font-family: 'Space Grotesk', sans-serif; font-size: 12px; color: #8FA3C7; letter-spacing: 0.04em; }
+  .json-pane pre { margin: 0; padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.65; color: #D6E2F5; overflow-x: auto; max-height: 560px; overflow-y: auto; }
+  .json-pane .k { color: #7CC4FA; }
+  .json-pane .s { color: #B9E6A8; }
+  .json-pane .muted { color: #5C6E8F; }
+
+  .setup-banner { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); border-radius: var(--radius); padding: 14px 18px; font-size: 13px; margin-bottom: 18px; }
+  .setup-banner input { margin-top: 8px; }
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--toast-bg); color: var(--text); border: 1px solid var(--border); padding: 11px 18px; border-radius: 8px; font-size: 13px; opacity: 0; transform: translateY(6px); transition: all .2s ease; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.err { background: var(--danger-strong); color: white; border-color: var(--danger-strong); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="eyebrow">News Pipeline</span>
+    <h1>Console</h1>
+  </div>
+  <div class="status" id="connStatus"><span class="dot"></span><span id="connLabel">Not connected</span></div>
+</div>
+
+<div class="layout signed-out" id="layout">
+  <div>
+    <div id="setupBanner" class="setup-banner" style="display:none">
+      Enter the dashboard key (the DASHBOARD_API_KEY value in the .env file on the server) - stored only in this browser.
+      <input id="dashKeyInput" type="password" placeholder="Dashboard key" style="margin-top:8px" />
+      <button class="btn btn-primary" style="margin-top:10px" onclick="saveConnection()">Connect</button>
+    </div>
+
+    <div id="appContent">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="sources" onclick="switchTab('sources')">Sources</button>
+      <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">Settings</button>
+    </div>
+
+    <div id="tab-sources">
+      <div class="panel">
+        <h2>RSS sources</h2>
+        <p class="hint">pipeline.mjs reads this list on every run - no redeploy needed when adding or removing sources.</p>
+        <table>
+          <thead><tr><th>Name</th><th>URL</th><th>Category</th><th></th></tr></thead>
+          <tbody id="sourcesBody"></tbody>
+        </table>
+        <div id="sourcesEmpty" class="empty-state" style="display:none">No sources yet. Add your first source below.</div>
+
+        <div class="field-row">
+          <input id="newName" placeholder="Source name (e.g. CNN Tech)" />
+          <input id="newUrl" class="mono-input" placeholder="https://.../rss" />
+          <select id="newCategory">
+            <option>Vietnam</option>
+            <option>International</option>
+            <option>Europe</option>
+            <option>China</option>
+            <option>AI</option>
+            <option>Startup</option>
+          </select>
+          <button class="btn btn-primary" onclick="addSource()">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-settings" style="display:none">
+      <div class="panel">
+        <h2>Slack</h2>
+        <p class="hint">Webhook URL of the Slack channel that receives the digest every 3 hours.</p>
+        <div class="field">
+          <label>Incoming Webhook URL</label>
+          <div class="secret-row">
+            <input id="slackWebhook" type="password" class="mono-input" placeholder="https://hooks.slack.com/services/..." />
+            <button class="btn btn-primary" onclick="saveSlack()">Save</button>
+          </div>
+          <div class="secret-status" id="slackStatus"><span class="dot"></span><span>Checking...</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>AI summary (Claude)</h2>
+        <p class="hint">Prefers the Claude subscription (via Claude Code CLI). If it fails or is not set up, automatically falls back to the Claude API.</p>
+        <div class="field">
+          <label>Subscription &mdash; OAuth token (preferred)</label>
+          <div class="secret-row">
+            <input id="claudeOauth" type="password" class="mono-input" placeholder="Generate with: claude setup-token" />
+            <button class="btn btn-primary" onclick="saveClaudeOauth()">Save</button>
+          </div>
+          <div class="secret-status" id="claudeOauthStatus"><span class="dot"></span><span>Checking...</span></div>
+          <p class="desc">On EC2, run <code>claude setup-token</code> once (requires a Pro/Max login) and paste the resulting token here.</p>
+        </div>
+        <div class="field">
+          <label>API key (fallback)</label>
+          <div class="secret-row">
+            <input id="claudeApiKey" type="password" class="mono-input" placeholder="sk-ant-..." />
+            <button class="btn btn-primary" onclick="saveClaudeApiKey()">Save</button>
+          </div>
+          <div class="secret-status" id="claudeApiKeyStatus"><span class="dot"></span><span>Checking...</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>X.com (Twitter)</h2>
+        <p class="hint">Requires a Bearer Token from the X Developer Portal. Accounts to follow are listed below.</p>
+        <div class="field">
+          <label>Bearer Token</label>
+          <div class="secret-row">
+            <input id="xToken" type="password" class="mono-input" placeholder="AAAAAAAAAAAAAAAAAAAAA..." />
+            <button class="btn btn-primary" onclick="saveXToken()">Save</button>
+          </div>
+          <div class="secret-status" id="xTokenStatus"><span class="dot"></span><span>Checking...</span></div>
+        </div>
+        <div class="field">
+          <label>Followed accounts</label>
+          <div class="tag-list" id="xAccountTags"></div>
+          <div style="display:flex; gap:8px;">
+            <input id="newXAccount" class="mono-input" placeholder="e.g. sundarpichai (no @ needed)" />
+            <button class="btn btn-primary" onclick="addXAccount()">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="json-pane">
+    <div class="head"><span>CONFIG.JSON &mdash; exactly what pipeline.mjs will read</span></div>
+    <pre id="jsonPreview">{}</pre>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let DASH_KEY = localStorage.getItem('newsDashKey') || '';
+let state = { sources: [], settings: { x_accounts: [], slack_webhook_set: false, x_token_set: false, claude_api_key_set: false, claude_subscription_set: false } };
+
+function showToast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr ? ' err' : '');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function setConnStatus(mode, label) {
+  const el = document.getElementById('connStatus');
+  el.className = 'status ' + mode;
+  document.getElementById('connLabel').textContent = label;
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch('/api' + path, {
+    ...opts,
+    headers: { 'content-type': 'application/json', 'x-dashboard-key': DASH_KEY, ...(opts.headers || {}) },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    // Wrong or rotated key: forget it and ask again instead of leaving a half-loaded page
+    if (res.status === 401) signOut();
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+function saveConnection() {
+  const key = document.getElementById('dashKeyInput').value.trim();
+  if (!key) return showToast('Enter the dashboard key first', true);
+  DASH_KEY = key;
+  localStorage.setItem('newsDashKey', DASH_KEY);
+  loadAll();
+}
+
+function setSignedIn(signedIn) {
+  document.getElementById('layout').classList.toggle('signed-out', !signedIn);
+  document.getElementById('setupBanner').style.display = signedIn ? 'none' : '';
+}
+
+function signOut() {
+  DASH_KEY = '';
+  localStorage.removeItem('newsDashKey');
+  setSignedIn(false);
+  setConnStatus('err', 'Not connected');
+  const input = document.getElementById('dashKeyInput');
+  input.value = '';
+  input.focus();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('tab-sources').style.display = tab === 'sources' ? '' : 'none';
+  document.getElementById('tab-settings').style.display = tab === 'settings' ? '' : 'none';
+}
+
+function renderSources() {
+  const body = document.getElementById('sourcesBody');
+  const empty = document.getElementById('sourcesEmpty');
+  body.innerHTML = '';
+  empty.style.display = state.sources.length ? 'none' : '';
+  state.sources.forEach((s) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(s.name)}</td>
+      <td class="url" title="${escapeHtml(s.url)}">${escapeHtml(s.url)}</td>
+      <td><span class="cat-pill">${escapeHtml(s.category)}</span></td>
+      <td class="row-actions"><button>Delete</button></td>`;
+    tr.querySelector('button').addEventListener('click', () => removeSource(s.id));
+    body.appendChild(tr);
+  });
+  renderJsonPreview();
+}
+
+function renderXAccounts() {
+  const wrap = document.getElementById('xAccountTags');
+  wrap.innerHTML = '';
+  (state.settings.x_accounts || []).forEach((acc) => {
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.innerHTML = `@${escapeHtml(acc)} <button>&times;</button>`;
+    tag.querySelector('button').addEventListener('click', () => removeXAccount(acc));
+    wrap.appendChild(tag);
+  });
+}
+
+function renderSecretStatus(elId, isSet) {
+  const el = document.getElementById(elId);
+  el.classList.toggle('set', isSet);
+  el.querySelector('span:last-child').textContent = isSet ? 'Configured' : 'Not configured';
+}
+
+function renderJsonPreview() {
+  const preview = {
+    sources: state.sources.map((s) => ({ name: s.name, url: s.url, category: s.category })),
+    ai_provider: state.settings.claude_subscription_set
+      ? 'subscription (Claude Code CLI)'
+      : state.settings.claude_api_key_set
+      ? 'api_key (fallback)'
+      : 'NOT CONFIGURED',
+    slack_webhook: state.settings.slack_webhook_set ? '••••••• (set in .env)' : null,
+    x_bearer_token: state.settings.x_token_set ? '••••••• (set in .env)' : null,
+    x_accounts: state.settings.x_accounts || [],
+  };
+  document.getElementById('jsonPreview').textContent = JSON.stringify(preview, null, 2);
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function loadAll() {
+  if (!DASH_KEY) return signOut();
+  try {
+    setConnStatus('', 'Loading...');
+    const [sources, settings] = await Promise.all([api('/sources'), api('/settings')]);
+    state.sources = sources;
+    state.settings = settings;
+    renderSources();
+    renderXAccounts();
+    renderSecretStatus('slackStatus', settings.slack_webhook_set);
+    renderSecretStatus('xTokenStatus', settings.x_token_set);
+    renderSecretStatus('claudeOauthStatus', settings.claude_subscription_set);
+    renderSecretStatus('claudeApiKeyStatus', settings.claude_api_key_set);
+    document.getElementById('dashKeyInput').value = '';
+    setSignedIn(true);
+    setConnStatus('ok', 'Connected');
+  } catch (err) {
+    if (DASH_KEY) setConnStatus('err', 'Connection error');
+    showToast('Failed to load data: ' + err.message, true);
+  }
+}
+
+async function saveClaudeOauth() {
+  const val = document.getElementById('claudeOauth').value.trim();
+  if (!val) return showToast('Enter the OAuth token first', true);
+  try {
+    const settings = await api('/settings', { method: 'PUT', body: JSON.stringify({ claude_code_oauth_token: val }) });
+    state.settings = settings;
+    renderSecretStatus('claudeOauthStatus', settings.claude_subscription_set);
+    document.getElementById('claudeOauth').value = '';
+    renderJsonPreview();
+    showToast('Claude subscription token saved');
+  } catch (err) {
+    showToast('Error: ' + err.message, true);
+  }
+}
+
+async function saveClaudeApiKey() {
+  const val = document.getElementById('claudeApiKey').value.trim();
+  if (!val) return showToast('Enter the API key first', true);
+  try {
+    const settings = await api('/settings', { method: 'PUT', body: JSON.stringify({ claude_api_key: val }) });
+    state.settings = settings;
+    renderSecretStatus('claudeApiKeyStatus', settings.claude_api_key_set);
+    document.getElementById('claudeApiKey').value = '';
+    renderJsonPreview();
+    showToast('Claude API key saved');
+  } catch (err) {
+    showToast('Error: ' + err.message, true);
+  }
+}
+
+async function addSource() {
+  const name = document.getElementById('newName').value.trim();
+  const url = document.getElementById('newUrl').value.trim();
+  const category = document.getElementById('newCategory').value;
+  if (!name || !url) return showToast('Name and URL are required', true);
+  try {
+    const created = await api('/sources', { method: 'POST', body: JSON.stringify({ name, url, category }) });
+    state.sources.push(created);
+    renderSources();
+    document.getElementById('newName').value = '';
+    document.getElementById('newUrl').value = '';
+    showToast('Added source "' + name + '"');
+  } catch (err) {
+    showToast('Error: ' + err.message, true);
+  }
+}
+
+async function removeSource(id) {
+  try {
+    await api('/sources/' + encodeURIComponent(id), { method: 'DELETE' });
+    state.sources = state.sources.filter((s) => s.id !== id);
+    renderSources();
+    showToast('Source deleted');
+  } catch (err) {
+    showToast('Error: ' + err.message, true);
+  }
+}
+
+async function saveSlack() {
+  const val = document.getElementById('slackWebhook').value.trim();
+  if (!val) return showToast('Enter the webhook URL first', true);
+  try {
+    const settings = await api('/settings', { method: 'PUT', body: JSON.stringify({ slack_webhook_url: val }) });
+    state.settings = settings;
+    renderSecretStatus('slackStatus', settings.slack_webhook_set);
+    document.getElementById('slackWebhook').value = '';
+    renderJsonPreview();
+    showToast('Slack webhook saved');
+  } catch (err) {
+    showToast('Error: ' + err.message, true);
+  }
+}
+
+async function saveXToken() {
+  const val = document.getElementById('xToken').value.trim();
+  if (!val) return showToast('Enter the token first', true);
+  try {
+    const settings = await api('/settings', { method: 'PUT', body: JSON.stringify({ x_bearer_token: val }) });
+    state.settings = settings;
+    renderSecretStatus('xTokenStatus', settings.x_token_set);
+    document.getElementById('xToken').value = '';
+    renderJsonPreview();
+    showToast('X Bearer Token saved');
+  } catch (err) {
+    showToast('Error: ' + err.message, true);
+  }
+}
+
+async function addXAccount() {
+  const input = document.getElementById('newXAccount');
+  const handle = input.value.trim().replace(/^@/, '');
+  if (!handle) return;
+  if (!/^[A-Za-z0-9_]{1,15}$/.test(handle)) return showToast('X handles may only contain letters, digits and _ (max 15 characters)', true);
+  const accounts = Array.from(new Set([...(state.settings.x_accounts || []), handle]));
+  try {
+    const settings = await api('/settings', { method: 'PUT', body: JSON.stringify({ x_accounts: accounts }) });
+    state.settings = settings;
+    renderXAccounts();
+    renderJsonPreview();
+    input.value = '';
+  } catch (err) {
+    showToast('Error: ' + err.message, true);
+  }
+}
+
+async function removeXAccount(handle) {
+  const accounts = (state.settings.x_accounts || []).filter((a) => a !== handle);
+  try {
+    const settings = await api('/settings', { method: 'PUT', body: JSON.stringify({ x_accounts: accounts }) });
+    state.settings = settings;
+    renderXAccounts();
+    renderJsonPreview();
+  } catch (err) {
+    showToast('Error: ' + err.message, true);
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>

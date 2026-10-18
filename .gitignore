@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Secrets - never commit
+.env
+.env.*.tmp
+!.env.example
+
+# SQLite database (includes WAL/SHM files)
+data/
+
+# Logs / OS / editor
+*.log
+.DS_Store
+.vscode/
