@@ -88,7 +88,7 @@ After=network.target
 [Service]
 Type=simple
 User=<LINUX_USER_NAME>
-WorkingDirectory=/opt/news-app
+WorkingDirectory=/home/reviewbot/www/newshound
 ExecStart=/usr/bin/node server.mjs
 Restart=on-failure
 Environment=PORT=3000
@@ -114,7 +114,12 @@ crontab -e
 Add the line:
 
 ```cron
-0 */3 * * * cd /opt/news-app && /usr/bin/node pipeline.mjs >> /var/log/news-pipeline.log 2>&1
+# 12:00, 15:00, 18:00 Mon–Fri
+0 12,15,18 * * 1-5 cd /home/reviewbot/www/newshound && /usr/bin/node pipeline.mjs >> /home/reviewbot/newshound-pipeline.log 2>&1
+# 09:00 Tue–Fri: catch up since 18:00 the day before
+0 9 * * 2-5 cd /home/reviewbot/www/newshound && LOOKBACK_HOURS=15.5 /usr/bin/node pipeline.mjs >> /home/reviewbot/newshound-pipeline.log 2>&1
+# 09:00 Mon: catch up the weekend
+0 9 * * 1 cd /home/reviewbot/www/newshound && LOOKBACK_HOURS=63.5 DEDUPE_TTL_HOURS=96 /usr/bin/node pipeline.mjs >> /home/reviewbot/newshound-pipeline.log 2>&1
 ```
 
 Check the log:

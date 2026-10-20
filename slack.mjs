@@ -27,6 +27,8 @@ export async function postToSlack(webhookUrl, summaryText, meta = {}) {
   const sections = splitIntoSections(summaryText).slice(0, MAX_BLOCKS - 2);
   const payload = {
     text: header, // fallback for notifications/push
+    unfurl_links: false, // no link previews under the digest
+    unfurl_media: false,
     blocks: [
       { type: "section", text: { type: "mrkdwn", text: header } },
       { type: "divider" },
