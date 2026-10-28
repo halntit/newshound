@@ -105,27 +105,31 @@ sudo systemctl status news-dashboard
 
 The dashboard now runs at `http://<EC2_PUBLIC_IP>:3000`. Remember to open port 3000 in the Security Group (only for your IP, not publicly), or put an Nginx reverse proxy + HTTPS in front if you want safer access from multiple places.
 
-## Step 5 — Pipeline schedule (crontab, every 3 hours)
+## Step 5 — Pipeline schedule (crontab)
+
+Posts at **09:00, 12:00, 15:00 and 18:00 GMT+7, Monday to Friday**. EC2 runs cron in **UTC**, so the hours below are GMT+7 minus 7 (all runs stay on the same weekday in UTC).
 
 ```bash
 crontab -e
 ```
 
-Add the line:
+Add the lines:
 
 ```cron
-# 12:00, 15:00, 18:00 Mon–Fri
-0 12,15,18 * * 1-5 cd /home/reviewbot/www/newshound && /usr/bin/node pipeline.mjs >> /home/reviewbot/newshound-pipeline.log 2>&1
-# 09:00 Tue–Fri: catch up since 18:00 the day before
-0 9 * * 2-5 cd /home/reviewbot/www/newshound && LOOKBACK_HOURS=15.5 /usr/bin/node pipeline.mjs >> /home/reviewbot/newshound-pipeline.log 2>&1
-# 09:00 Mon: catch up the weekend
-0 9 * * 1 cd /home/reviewbot/www/newshound && LOOKBACK_HOURS=63.5 DEDUPE_TTL_HOURS=96 /usr/bin/node pipeline.mjs >> /home/reviewbot/newshound-pipeline.log 2>&1
+# 12:00, 15:00, 18:00 GMT+7 (05:00, 08:00, 11:00 UTC), Mon–Fri
+0 5,8,11 * * 1-5 cd /home/reviewbot/www/newshound && /usr/bin/node pipeline.mjs >> /home/reviewbot/newshound-pipeline.log 2>&1
+# 09:00 GMT+7 (02:00 UTC) Tue–Fri: catch up since 18:00 the day before
+0 2 * * 2-5 cd /home/reviewbot/www/newshound && LOOKBACK_HOURS=15.5 /usr/bin/node pipeline.mjs >> /home/reviewbot/newshound-pipeline.log 2>&1
+# 09:00 GMT+7 (02:00 UTC) Mon: catch up the weekend; longer dedupe window so Friday's items aren't re-posted
+0 2 * * 1 cd /home/reviewbot/www/newshound && LOOKBACK_HOURS=63.5 DEDUPE_TTL_HOURS=96 /usr/bin/node pipeline.mjs >> /home/reviewbot/newshound-pipeline.log 2>&1
 ```
+
+The normal runs look back 3.5 hours (the default `LOOKBACK_HOURS`). The 09:00 runs look back further so news from the evening, night and weekend isn't skipped. Adjust the paths if you cloned somewhere other than `/home/reviewbot/www/newshound`.
 
 Check the log:
 
 ```bash
-tail -f /var/log/news-pipeline.log
+tail -f /home/reviewbot/newshound-pipeline.log
 ```
 
 ## Step 6 — Open the dashboard and configure
